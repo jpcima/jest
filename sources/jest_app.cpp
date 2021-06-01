@@ -15,7 +15,8 @@
 #include <QFileInfo>
 #include <QFile>
 #include <QDir>
-#include <QFileSystemWatcher>
+#include <QDateTime>
+#include <QTimer>
 #include <QDebug>
 
 namespace jest {
@@ -25,13 +26,16 @@ struct App::Impl {
     DSPWrapperPtr _dspWrapper;
     Worker *_worker = nullptr;
     Client _client;
-    QFileSystemWatcher *_watcher = nullptr;
     QMainWindow *_window = nullptr;
     Ui::MainWindow _windowUi;
     QProgressIndicator *_spinner = nullptr;
     QLabel *_statusLabel = nullptr;
     GUI *_faustUi = nullptr;
+    QString _fileToLoad;
+    QDateTime _fileToLoadMtime;
+    QTimer *_fileCheckTimer = nullptr;
 
+    void requestCurrentFile();
     void startedCompiling(const CompileRequest &request);
     void finishedCompiling(const CompileRequest &request, const CompileResult &result);
 };
@@ -125,6 +129,21 @@ void App::init(int termPipe)
     toolBar->addWidget(spinner);
 
     ///
+    QTimer *fileCheckTimer = new QTimer(this);
+    impl._fileCheckTimer = fileCheckTimer;
+    fileCheckTimer->setInterval(100);
+    connect(
+        fileCheckTimer, &QTimer::timeout,
+        this, [&impl]() {
+            QDateTime mtime = QFileInfo(impl._fileToLoad).fileTime(QFile::FileModificationTime);
+            if (mtime.isValid() && mtime != impl._fileToLoadMtime) {
+                Log::i("DSP file changed");
+                impl._fileToLoadMtime = mtime;
+                impl.requestCurrentFile();
+            }
+        });
+
+    ///
     impl._worker = new Worker(this);
 
     connect(
@@ -149,9 +168,12 @@ void App::loadFile(const QString &fileName)
 {
     Impl &impl = *_impl;
 
-    CompileRequest req;
-    req.fileName = fileName;
-    impl._worker->request(req);
+    impl._fileToLoad = fileName;
+    impl._fileToLoadMtime = QFileInfo(fileName).fileTime(QFile::FileModificationTime);
+
+    impl.requestCurrentFile();
+
+    impl._fileCheckTimer->start();
 }
 
 void App::chooseFile()
@@ -168,21 +190,15 @@ void App::chooseFile()
 }
 
 ///
+void App::Impl::requestCurrentFile()
+{
+    CompileRequest req;
+    req.fileName = _fileToLoad;
+    _worker->request(req);
+}
+
 void App::Impl::startedCompiling(const CompileRequest &request)
 {
-    if (_watcher) {
-        _watcher->deleteLater();
-    }
-
-    App *self = static_cast<App *>(qApp);
-    const QString &fileName = request.fileName;
-
-    _watcher = new QFileSystemWatcher(self);
-    _watcher->addPath(fileName);
-    connect(
-        _watcher, &QFileSystemWatcher::fileChanged,
-        self, [self, fileName]() { Log::i("DSP file changed"); self->loadFile(fileName); });
-
     _spinner->startAnimation();
 }
 
