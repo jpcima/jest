@@ -3,6 +3,9 @@ cmake_minimum_required(VERSION "3.7.0")
 project(jest)
 
 ###
+include(GNUInstallDirs)
+
+###
 set(CMAKE_CXX_STANDARD 11)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_INCLUDE_CURRENT_DIR ON)
@@ -50,3 +53,6 @@ target_link_libraries(jest PRIVATE QProgressIndicator Qt5::Widgets Qt5::Network)
 if(DL_LIBRARY)
   target_link_libraries(jest PRIVATE "${DL_LIBRARY}")
 endif()
+
+###
+install(TARGETS jest DESTINATION "${CMAKE_INSTALL_BINDIR}")
