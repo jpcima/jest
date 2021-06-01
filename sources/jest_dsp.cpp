@@ -18,8 +18,10 @@ DSPWrapper::~DSPWrapper()
         QFile::remove(_soFile);
 }
 
-DSPWrapperPtr DSPWrapper::compile(const QString &fileName)
+CompileResult DSPWrapper::compile(const CompileRequest &request)
 {
+    CompileResult result;
+
     Log::i("Compiling DSP");
 
     const QString cppFile = QString("%1/%2").arg(getCacheDirectory()).arg("file.cpp");
@@ -29,7 +31,7 @@ DSPWrapperPtr DSPWrapper::compile(const QString &fileName)
         QTemporaryFile temp(soFile);
         if (!temp.open()) {
             Log::e("DSP compilation failed (temporary file)");
-            return nullptr;
+            return result;
         }
         soFile = temp.fileName();
     }
@@ -40,13 +42,13 @@ DSPWrapperPtr DSPWrapper::compile(const QString &fileName)
         QStringList args;
         args << "-o" << cppFile;
         args << "-a" << getWrapperFile();
-        args << fileName;
+        args << request.fileName;
         proc.setArguments(args);
         proc.start();
         proc.waitForFinished(-1);
         if (proc.exitStatus() != QProcess::NormalExit || proc.exitCode() != 0) {
             Log::e("DSP compilation failed (faust)");
-            return nullptr;
+            return result;
         }
     }
 
@@ -65,7 +67,7 @@ DSPWrapperPtr DSPWrapper::compile(const QString &fileName)
         proc.waitForFinished(-1);
         if (proc.exitStatus() != QProcess::NormalExit || proc.exitCode() != 0) {
             Log::e("DSP compilation failed (c++)");
-            return nullptr;
+            return result;
         }
     }
 
@@ -77,7 +79,7 @@ DSPWrapperPtr DSPWrapper::compile(const QString &fileName)
     void *soHandle = dlopen(soFile.toUtf8().data(), RTLD_LAZY);
     if (!soHandle) {
         Log::e("DSP loading failed: %s", dlerror());
-        return nullptr;
+        return result;
     }
     wrapper->_soHandle = soHandle;
     wrapper->_soFile = soFile;
@@ -85,18 +87,19 @@ DSPWrapperPtr DSPWrapper::compile(const QString &fileName)
     dsp *(*entry)() = (dsp *(*)())dlsym(soHandle, "createDSPInstance");
     if (!entry) {
         Log::e("DSP loading failed");
-        return nullptr;
+        return result;
     }
 
     dsp *dsp = entry();
     if (!dsp) {
         Log::e("DSP instantiation failed");
-        return nullptr;
+        return result;
     }
     wrapper->_dsp = dsp;
 
     ///
-    return wrapper;
+    result.dspWrapper = wrapper;
+    return result;
 }
 
 const QString &DSPWrapper::getCacheDirectory()

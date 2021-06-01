@@ -21,6 +21,8 @@ add_executable(jest
   "sources/jest_app.h"
   "sources/jest_dsp.cpp"
   "sources/jest_dsp.h"
+  "sources/jest_worker.cpp"
+  "sources/jest_worker.h"
   "sources/jest_client.cpp"
   "sources/jest_client.h"
   "sources/jest_main_window.ui"

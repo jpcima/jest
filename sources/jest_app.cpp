@@ -1,5 +1,6 @@
 #include "jest_app.h"
 #include "jest_dsp.h"
+#include "jest_worker.h"
 #include "jest_client.h"
 #include "utility/logs.h"
 #include "ui_jest_main_window.h"
@@ -18,14 +19,17 @@
 namespace jest {
 
 struct App::Impl {
-    QSocketNotifier *termPipeNotifier = nullptr;
-    DSPWrapperPtr dspWrapper;
-    QString dspFile;
-    Client client;
-    QFileSystemWatcher *watcher = nullptr;
-    QMainWindow *window = nullptr;
-    Ui::MainWindow windowUi;
-    GUI *faustUi = nullptr;
+    QSocketNotifier *_termPipeNotifier = nullptr;
+    DSPWrapperPtr _dspWrapper;
+    Worker *_worker = nullptr;
+    Client _client;
+    QFileSystemWatcher *_watcher = nullptr;
+    QMainWindow *_window = nullptr;
+    Ui::MainWindow _windowUi;
+    GUI *_faustUi = nullptr;
+
+    void startedCompiling(const CompileRequest &request);
+    void finishedCompiling(const CompileRequest &request, const CompileResult &result);
 };
 
 App::App(int &argc, char **argv)
@@ -37,6 +41,9 @@ App::App(int &argc, char **argv)
 
 App::~App()
 {
+    Impl &impl = *_impl;
+
+    delete impl._worker;
 }
 
 void App::init(int termPipe)
@@ -44,9 +51,9 @@ void App::init(int termPipe)
     Impl &impl = *_impl;
 
     if (termPipe != -1) {
-        impl.termPipeNotifier = new QSocketNotifier(termPipe, QSocketNotifier::Read, this);
+        impl._termPipeNotifier = new QSocketNotifier(termPipe, QSocketNotifier::Read, this);
         connect(
-            impl.termPipeNotifier, &QSocketNotifier::activated,
+            impl._termPipeNotifier, &QSocketNotifier::activated,
             this, [this](QSocketDescriptor socket, QSocketNotifier::Type type) {
                 Log::i("Interrupt");
                 char byte;
@@ -79,17 +86,26 @@ void App::init(int termPipe)
 
     ///
     QMainWindow *window = new QMainWindow;
-    impl.window = window;
-    impl.windowUi.setupUi(window);
+    impl._window = window;
+    impl._windowUi.setupUi(window);
 
     window->setWindowTitle(applicationDisplayName());
     window->show();
 
     connect(
-        impl.windowUi.actionOpen, &QAction::triggered,
+        impl._windowUi.actionOpen, &QAction::triggered,
         this, [this]() { chooseFile(); });
 
     ///
+    impl._worker = new Worker(this);
+
+    connect(
+        impl._worker, &Worker::startedCompiling,
+        this, [&impl](const CompileRequest &request) { impl.startedCompiling(request); });
+    connect(
+        impl._worker, &Worker::finishedCompiling,
+        this, [&impl](const CompileRequest &request, const CompileResult &result) { impl.finishedCompiling(request, result); });
+
     if (!fileToLoad.isEmpty())
         loadFile(fileToLoad);
 }
@@ -105,27 +121,54 @@ void App::loadFile(const QString &fileName)
 {
     Impl &impl = *_impl;
 
-    DSPWrapperPtr wrapper = DSPWrapper::compile(fileName);
-    impl.dspWrapper = wrapper;
-    impl.dspFile = fileName;
+    CompileRequest req;
+    req.fileName = fileName;
+    impl._worker->request(req);
+}
 
-    if (impl.watcher) {
-        impl.watcher->deleteLater();
+void App::chooseFile()
+{
+    Impl &impl = *_impl;
+
+    QString fileName = QFileDialog::getOpenFileName(
+        impl._window, tr("Open file"), QString(), tr("Faust DSP (*.dsp)"));
+
+    if (fileName.isEmpty())
+        return;
+
+    loadFile(fileName);
+}
+
+///
+void App::Impl::startedCompiling(const CompileRequest &request)
+{
+    if (_watcher) {
+        _watcher->deleteLater();
     }
 
-    impl.watcher = new QFileSystemWatcher(this);
-    impl.watcher->addPath(fileName);
+    App *self = static_cast<App *>(qApp);
+    const QString &fileName = request.fileName;
+
+    _watcher = new QFileSystemWatcher(self);
+    _watcher->addPath(fileName);
     connect(
-        impl.watcher, &QFileSystemWatcher::fileChanged,
-        this, [this, fileName]() { Log::i("DSP file changed"); loadFile(fileName); });
+        _watcher, &QFileSystemWatcher::fileChanged,
+        self, [self, fileName]() { Log::i("DSP file changed"); self->loadFile(fileName); });
+}
+
+void App::Impl::finishedCompiling(const CompileRequest &request, const CompileResult &result)
+{
+    DSPWrapperPtr wrapper = result.dspWrapper;
+
+    _dspWrapper = wrapper;
 
     ///
-    if (impl.faustUi) {
-        impl.faustUi->stop();
-        impl.faustUi = nullptr;
+    if (_faustUi) {
+        _faustUi->stop();
+        _faustUi = nullptr;
     }
 
-    QFrame *mainFrame = impl.windowUi.mainFrame;
+    QFrame *mainFrame = _windowUi.mainFrame;
 
     QVBoxLayout *layout = static_cast<QVBoxLayout *>(mainFrame->layout());
     if (!layout) {
@@ -142,36 +185,23 @@ void App::loadFile(const QString &fileName)
     if (!wrapper)
       return;
 
-    impl.client.setDsp(wrapper);
+    _client.setDsp(wrapper);
 
     ///
     dsp *dsp = wrapper->getDsp();
 
     ///
     GUI *faustUI = QTUI_create();
-    impl.faustUi = faustUI;
+    _faustUi = faustUI;
     dsp->buildUserInterface(faustUI);
     {
         layout->addWidget(QTUI_widget(faustUI));
-        impl.window->setWindowTitle(
+        _window->setWindowTitle(
             QString("%1: %2").arg(applicationDisplayName())
-            .arg(QFileInfo(fileName).baseName()));
-        impl.window->adjustSize();
+            .arg(QFileInfo(request.fileName).baseName()));
+        _window->adjustSize();
     }
     faustUI->run();
-}
-
-void App::chooseFile()
-{
-    Impl &impl = *_impl;
-
-    QString fileName = QFileDialog::getOpenFileName(
-        impl.window, tr("Open file"), QString(), tr("Faust DSP (*.dsp)"));
-
-    if (fileName.isEmpty())
-        return;
-
-    loadFile(fileName);
 }
 
 } // namespace jest
