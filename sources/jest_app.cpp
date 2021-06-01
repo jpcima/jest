@@ -6,6 +6,8 @@
 #include "ui_jest_main_window.h"
 #include "faust/MyQTUI.h"
 #include <unistd.h>
+#include <QProgressIndicator>
+#include <QLabel>
 #include <QFileDialog>
 #include <QSocketNotifier>
 #include <QCommandLineParser>
@@ -26,6 +28,8 @@ struct App::Impl {
     QFileSystemWatcher *_watcher = nullptr;
     QMainWindow *_window = nullptr;
     Ui::MainWindow _windowUi;
+    QProgressIndicator *_spinner = nullptr;
+    QLabel *_statusLabel = nullptr;
     GUI *_faustUi = nullptr;
 
     void startedCompiling(const CompileRequest &request);
@@ -96,6 +100,30 @@ void App::init(int termPipe)
         impl._windowUi.actionOpen, &QAction::triggered,
         this, [this]() { chooseFile(); });
 
+    QToolBar *toolBar = impl._windowUi.toolBar;
+
+    QWidget *toolBarSpacer = new QWidget;
+    toolBarSpacer->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Preferred);
+    toolBar->addWidget(toolBarSpacer);
+
+    QLabel *statusLabel = new QLabel(tr("Init"));
+    impl._statusLabel = statusLabel;
+    toolBar->addWidget(statusLabel);
+
+    statusLabel->setSizePolicy(QSizePolicy::Preferred, QSizePolicy::Maximum);
+    statusLabel->setFrameShape(QFrame::Panel);
+    statusLabel->setFrameShadow(QFrame::Sunken);
+    statusLabel->setAutoFillBackground(true);
+
+    QPalette statusPalette = statusLabel->palette();
+    statusPalette.setColor(statusLabel->foregroundRole(), Qt::white);
+    statusPalette.setColor(statusLabel->backgroundRole(), Qt::black);
+    statusLabel->setPalette(statusPalette);
+
+    QProgressIndicator *spinner = new QProgressIndicator;
+    impl._spinner = spinner;
+    toolBar->addWidget(spinner);
+
     ///
     impl._worker = new Worker(this);
 
@@ -154,10 +182,14 @@ void App::Impl::startedCompiling(const CompileRequest &request)
     connect(
         _watcher, &QFileSystemWatcher::fileChanged,
         self, [self, fileName]() { Log::i("DSP file changed"); self->loadFile(fileName); });
+
+    _spinner->startAnimation();
 }
 
 void App::Impl::finishedCompiling(const CompileRequest &request, const CompileResult &result)
 {
+    _spinner->stopAnimation();
+
     DSPWrapperPtr wrapper = result.dspWrapper;
 
     _dspWrapper = wrapper;
@@ -167,6 +199,14 @@ void App::Impl::finishedCompiling(const CompileRequest &request, const CompileRe
         _faustUi->stop();
         _faustUi = nullptr;
     }
+
+    QLabel *statusLabel = _statusLabel;
+    statusLabel->setText(wrapper ? tr("Success") : tr("Error"));
+
+    QPalette statusPalette = statusLabel->palette();
+    statusPalette.setColor(statusLabel->foregroundRole(), wrapper ? Qt::green : Qt::red);
+    statusPalette.setColor(statusLabel->backgroundRole(), Qt::black);
+    statusLabel->setPalette(statusPalette);
 
     QFrame *mainFrame = _windowUi.mainFrame;
 

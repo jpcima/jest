@@ -15,6 +15,15 @@ pkg_check_modules(JACK "jack" REQUIRED IMPORTED_TARGET)
 find_library(DL_LIBRARY "dl")
 
 ###
+add_library(QProgressIndicator STATIC EXCLUDE_FROM_ALL
+  "thirdparty/QProgressIndicator/QProgressIndicator.cpp"
+  "thirdparty/QProgressIndicator/QProgressIndicator.h")
+target_include_directories(QProgressIndicator PUBLIC "thirdparty/QProgressIndicator")
+target_link_libraries(QProgressIndicator PUBLIC Qt5::Widgets)
+set_target_properties(QProgressIndicator PROPERTIES
+  AUTOMOC TRUE)
+
+###
 add_executable(jest
   "sources/jest.cpp"
   "sources/jest_app.cpp"
@@ -37,7 +46,7 @@ set_target_properties(jest PROPERTIES
   AUTOUIC TRUE)
 
 target_link_libraries(jest PRIVATE PkgConfig::JACK Threads::Threads)
-target_link_libraries(jest PRIVATE Qt5::Widgets Qt5::Network)
+target_link_libraries(jest PRIVATE QProgressIndicator Qt5::Widgets Qt5::Network)
 if(DL_LIBRARY)
   target_link_libraries(jest PRIVATE "${DL_LIBRARY}")
 endif()
