@@ -113,6 +113,11 @@ void App::init(int termPipe)
     QLabel *statusLabel = new QLabel(tr("Init"));
     impl._statusLabel = statusLabel;
     toolBar->addWidget(statusLabel);
+    {
+        QFont font = statusLabel->font();
+        font.setWeight(QFont::Bold);
+        statusLabel->setFont(font);
+    }
 
     statusLabel->setSizePolicy(QSizePolicy::Preferred, QSizePolicy::Maximum);
     statusLabel->setFrameShape(QFrame::Panel);
@@ -120,7 +125,7 @@ void App::init(int termPipe)
     statusLabel->setAutoFillBackground(true);
 
     QPalette statusPalette = statusLabel->palette();
-    statusPalette.setColor(statusLabel->foregroundRole(), Qt::white);
+    statusPalette.setColor(statusLabel->foregroundRole(), Qt::lightGray);
     statusPalette.setColor(statusLabel->backgroundRole(), Qt::black);
     statusLabel->setPalette(statusPalette);
 
