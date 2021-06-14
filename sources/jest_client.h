@@ -17,6 +17,10 @@ public:
 private:
     jack_client_t *getJackClient();
     void updateJackIOs();
+
+    std::vector<std::string> saveJackConnections(jack_port_t *port);
+    void restoreJackConnections(jack_port_t *port, const std::vector<std::string> &connections);
+
     static int process(jack_nframes_t nframes, void *arg);
 
 private:

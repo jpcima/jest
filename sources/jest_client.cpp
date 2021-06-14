@@ -1,6 +1,7 @@
 #include "jest_client.h"
 #include "jest_dsp.h"
 #include "utility/logs.h"
+#include <algorithm>
 #include <cstring>
 #include <cstdlib>
 
@@ -19,6 +20,18 @@ Client::~Client()
 void Client::setDsp(DSPWrapperPtr dspWrapper)
 {
     jack_client_t *client = getJackClient();
+
+    ///
+    size_t oldNumInputs = _inputs.size();
+    size_t oldNumOutputs = _outputs.size();
+    std::vector<std::vector<std::string>> inputConnections(oldNumInputs);
+    std::vector<std::vector<std::string>> outputConnections(oldNumOutputs);
+    for (size_t i = 0; i < oldNumInputs; ++i)
+        inputConnections[i] = saveJackConnections(_inputs[i]);
+    for (size_t i = 0; i < oldNumOutputs; ++i)
+        outputConnections[i] = saveJackConnections(_outputs[i]);
+
+    ///
     jack_deactivate(client);
 
     _dspWrapper = dspWrapper;
@@ -34,9 +47,18 @@ void Client::setDsp(DSPWrapperPtr dspWrapper)
     Log::i("Update JACK I/O");
     updateJackIOs();
 
-    Log::s("%zu inputs, %zu outputs", _inputs.size(), _outputs.size());
-
     jack_activate(client);
+
+    ///
+    size_t newNumInputs = _inputs.size();
+    size_t newNumOutputs = _outputs.size();
+
+    Log::s("%zu inputs, %zu outputs", newNumInputs, newNumOutputs);
+
+    for (size_t i = 0; i < std::min(oldNumInputs, newNumInputs); ++i)
+        restoreJackConnections(_inputs[i], inputConnections[i]);
+    for (size_t i = 0; i < std::min(oldNumOutputs, newNumOutputs); ++i)
+        restoreJackConnections(_outputs[i], outputConnections[i]);
 }
 
 jack_client_t *Client::getJackClient()
@@ -101,6 +123,48 @@ void Client::updateJackIOs()
     }
 
     _portBufs.resize(newInputCount + newOutputCount);
+}
+
+std::vector<std::string> Client::saveJackConnections(jack_port_t *port)
+{
+    std::vector<std::string> connections;
+
+    const char **con = jack_port_get_connections(port);
+    if (!con)
+        return connections;
+
+    size_t count;
+    for (count = 0; con[count]; ++count);
+
+    connections.reserve(count);
+    for (size_t i = 0; i < count; ++i)
+        connections.emplace_back(con[i]);
+
+    jack_free(con);
+    return connections;
+}
+
+void Client::restoreJackConnections(jack_port_t *port, const std::vector<std::string> &connections)
+{
+    jack_client_t *client = getJackClient();
+    int flags = jack_port_flags(port);
+
+    const char *src = nullptr;
+    const char *dst = nullptr;
+
+    if (flags & JackPortIsOutput)
+        src = jack_port_name(port);
+    else
+        dst = jack_port_name(port);
+
+    size_t count = connections.size();
+    for (size_t i = 0; i < count; ++i) {
+        if (flags & JackPortIsOutput)
+            dst = connections[i].c_str();
+        else
+            src = connections[i].c_str();
+        jack_connect(client, src, dst);
+    }
 }
 
 int Client::process(jack_nframes_t nframes, void *arg)
