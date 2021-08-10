@@ -20,6 +20,9 @@
 #include <QDateTime>
 #include <QTimer>
 #include <QCloseEvent>
+#include <QDragEnterEvent>
+#include <QDropEvent>
+#include <QMimeData>
 #include <QJsonDocument>
 #include <QJsonObject>
 #include <QJsonArray>
@@ -62,9 +65,11 @@ struct App::Impl {
     ///
     class MainWindow : public QMainWindow {
     public:
-        using QMainWindow::QMainWindow;
+        MainWindow();
 
     protected:
+        void dragEnterEvent(QDragEnterEvent *event) override;
+        void dropEvent(QDropEvent *event) override;
         void closeEvent(QCloseEvent *event) override;
     };
 
@@ -367,6 +372,36 @@ void App::Impl::finishedCompiling(const CompileRequest &request, const CompileRe
 }
 
 ///
+App::Impl::MainWindow::MainWindow()
+{
+    setAcceptDrops(true);
+}
+
+void App::Impl::MainWindow::dragEnterEvent(QDragEnterEvent *event)
+{
+    const QMimeData *mimeData = event->mimeData();
+    if (mimeData->hasUrls())
+        event->acceptProposedAction();
+}
+
+void App::Impl::MainWindow::dropEvent(QDropEvent *event)
+{
+    App *self = static_cast<App *>(QCoreApplication::instance());
+    const QMimeData *mimeData = event->mimeData();
+    QList<QUrl> urls = mimeData->urls();
+
+    QUrl fileUrl;
+    for (int i = 0, n = urls.size(); i < n && fileUrl.isEmpty(); ++i) {
+        if (urls[i].isLocalFile())
+            fileUrl = urls[i];
+    }
+
+    if (!fileUrl.isEmpty()) {
+        QString filePath = fileUrl.path();
+        self->loadFile(filePath);
+    }
+}
+
 void App::Impl::MainWindow::closeEvent(QCloseEvent *event)
 {
     App *self = static_cast<App *>(QCoreApplication::instance());
