@@ -60,6 +60,15 @@ struct App::Impl {
     void finishedCompiling(const CompileRequest &request, const CompileResult &result);
 
     ///
+    class MainWindow : public QMainWindow {
+    public:
+        using QMainWindow::QMainWindow;
+
+    protected:
+        void closeEvent(QCloseEvent *event) override;
+    };
+
+    ///
     static int nsmOpen(const char *name, const char *display_name, const char *client_id, char **out_msg, void *userdata);
     static int nsmSave(char **out_msg, void *userdata);
     static void nsmShowOptionalGui(void *userdata);
@@ -112,27 +121,7 @@ void App::init(int termPipe)
     }
 
     ///
-    class MainWindow : public QMainWindow {
-    public:
-        using QMainWindow::QMainWindow;
-
-    protected:
-        void closeEvent(QCloseEvent *event) override
-        {
-            App *self = static_cast<App *>(QCoreApplication::instance());
-            Impl &impl = *self->_impl;
-            nsm_client_t *nsmClient = impl._nsmClient.get();
-            if (!nsmClient)
-                event->accept();
-            else {
-                event->ignore();
-                hide();
-                nsm_send_gui_is_hidden(nsmClient);
-            }
-        }
-    };
-
-    MainWindow *window = new MainWindow;
+    Impl::MainWindow *window = new Impl::MainWindow;
     impl._window = window;
     impl._windowUi.setupUi(window);
 
@@ -377,7 +366,22 @@ void App::Impl::finishedCompiling(const CompileRequest &request, const CompileRe
     _client.setControls(request.initialControlValues.data(), request.initialControlValues.size());
 }
 
-//
+///
+void App::Impl::MainWindow::closeEvent(QCloseEvent *event)
+{
+    App *self = static_cast<App *>(QCoreApplication::instance());
+    Impl &impl = *self->_impl;
+    nsm_client_t *nsmClient = impl._nsmClient.get();
+    if (!nsmClient)
+        event->accept();
+    else {
+        event->ignore();
+        hide();
+        nsm_send_gui_is_hidden(nsmClient);
+    }
+}
+
+///
 int App::Impl::nsmOpen(const char *path, const char *display_name, const char *client_id, char **out_msg, void *userdata)
 {
     Impl &impl = *(Impl *)userdata;
