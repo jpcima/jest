@@ -2,5 +2,6 @@
 <RCC version="1.0">
     <qresource>
         <file>architecture/wrapper.cpp</file>
+        <file>icons/jest.svg</file>
     </qresource>
 </RCC>

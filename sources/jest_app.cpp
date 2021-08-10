@@ -136,6 +136,9 @@ void App::init(int termPipe)
     impl._window = window;
     impl._windowUi.setupUi(window);
 
+    QIcon icon(":/icons/jest.svg");
+    window->setWindowIcon(icon);
+
     ///
     const char *nsmUrl = getenv("NSM_URL");
     bool isUnderNsm = nsmUrl != nullptr;
