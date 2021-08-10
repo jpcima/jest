@@ -148,6 +148,16 @@ void App::init(int termPipe)
     if (!isUnderNsm)
         window->show();
 
+    QFrame *mainFrame = impl._windowUi.mainFrame;
+    QVBoxLayout *mainLayout = new QVBoxLayout;
+    mainLayout = new QVBoxLayout;
+    mainLayout->setContentsMargins(0, 0, 0, 0);
+    mainFrame->setLayout(mainLayout);
+
+    QLabel *mainLabel = new QLabel;
+    mainLabel->setPixmap(QPixmap(":/images/DropYourFaustLife_Blue.png"));
+    mainLayout->addWidget(mainLabel);
+
     connect(
         impl._windowUi.actionOpen, &QAction::triggered,
         this, [this]() { chooseFile(); });
@@ -336,12 +346,6 @@ void App::Impl::finishedCompiling(const CompileRequest &request, const CompileRe
     QFrame *mainFrame = _windowUi.mainFrame;
 
     QVBoxLayout *layout = static_cast<QVBoxLayout *>(mainFrame->layout());
-    if (!layout) {
-      layout = new QVBoxLayout;
-      layout->setContentsMargins(0, 0, 0, 0);
-      mainFrame->setLayout(layout);
-    }
-
     while (QLayoutItem *item = layout->takeAt(0)) {
         delete item->widget();
         delete item;

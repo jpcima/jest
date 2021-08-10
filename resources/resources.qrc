@@ -3,5 +3,6 @@
     <qresource>
         <file>architecture/wrapper.cpp</file>
         <file>icons/jest.svg</file>
+        <file>images/DropYourFaustLife_Blue.png</file>
     </qresource>
 </RCC>
