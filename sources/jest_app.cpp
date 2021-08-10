@@ -121,7 +121,14 @@ void App::init(int termPipe)
         {
             App *self = static_cast<App *>(QCoreApplication::instance());
             Impl &impl = *self->_impl;
-            event->setAccepted(impl._nsmClient == nullptr);
+            nsm_client_t *nsmClient = impl._nsmClient.get();
+            if (!nsmClient)
+                event->accept();
+            else {
+                event->ignore();
+                hide();
+                nsm_send_gui_is_hidden(nsmClient);
+            }
         }
     };
 
