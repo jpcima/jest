@@ -1290,7 +1290,6 @@ public:
     {
         fGeneralLayout = new QVBoxLayout;
         setLayout(fGeneralLayout);
-        QWidget::show();
 
         fTimer = NULL;
     }
@@ -1299,7 +1298,6 @@ public:
     {
         fGeneralLayout = new QVBoxLayout;
         setLayout(fGeneralLayout);
-        QWidget::show();
 
         fTimer = NULL;
     }
