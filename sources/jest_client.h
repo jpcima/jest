@@ -13,6 +13,7 @@ public:
     Client();
     ~Client();
     void setDsp(DSPWrapperPtr dspWrapper);
+    void setControls(const float *initialValues, size_t numInitialValues);
     void setClientName(const std::string &clientName);
     bool ensureJackClientOpened() { return getJackClient() != nullptr; }
 

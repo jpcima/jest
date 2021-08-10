@@ -1,5 +1,6 @@
 #include "jest_app.h"
 #include "jest_dsp.h"
+#include "jest_parameters.h"
 #include "jest_worker.h"
 #include "jest_client.h"
 #include "utility/logs.h"
@@ -21,7 +22,9 @@
 #include <QCloseEvent>
 #include <QJsonDocument>
 #include <QJsonObject>
+#include <QJsonArray>
 #include <QDebug>
+#include <vector>
 #include <stdexcept>
 
 struct nsm_delete { void operator()(nsm_client_t *x) const noexcept { nsm_free(x); } };
@@ -51,7 +54,8 @@ struct App::Impl {
     void initWithArgs();
     void initWithNsm(const char *nsmUrl);
 
-    void requestCurrentFile();
+    void loadFileEx(const QString &fileName, const QVector<float> &controlValues);
+    void requestCurrentFile(const QVector<float> &controlValues);
     void startedCompiling(const CompileRequest &request);
     void finishedCompiling(const CompileRequest &request, const CompileResult &result);
 
@@ -187,7 +191,7 @@ void App::init(int termPipe)
             if (mtime.isValid() && mtime != impl._fileToLoadMtime) {
                 Log::i("DSP file changed");
                 impl._fileToLoadMtime = mtime;
-                impl.requestCurrentFile();
+                impl.requestCurrentFile({});
             }
         });
 
@@ -212,13 +216,7 @@ void App::shutdown()
 void App::loadFile(const QString &fileName)
 {
     Impl &impl = *_impl;
-
-    impl._fileToLoad = fileName;
-    impl._fileToLoadMtime = QFileInfo(fileName).fileTime(QFile::FileModificationTime);
-
-    impl.requestCurrentFile();
-
-    impl._fileCheckTimer->start();
+    impl.loadFileEx(fileName, {});
 }
 
 void App::chooseFile()
@@ -286,10 +284,21 @@ void App::Impl::initWithNsm(const char *nsmUrl)
 }
 
 ///
-void App::Impl::requestCurrentFile()
+void App::Impl::loadFileEx(const QString &fileName, const QVector<float> &controlValues)
+{
+    _fileToLoad = fileName;
+    _fileToLoadMtime = QFileInfo(fileName).fileTime(QFile::FileModificationTime);
+
+    requestCurrentFile(controlValues);
+
+    _fileCheckTimer->start();
+}
+
+void App::Impl::requestCurrentFile(const QVector<float> &controlValues)
 {
     CompileRequest req;
     req.fileName = _fileToLoad;
+    req.initialControlValues = controlValues;
     _worker->request(req);
 }
 
@@ -335,7 +344,7 @@ void App::Impl::finishedCompiling(const CompileRequest &request, const CompileRe
     }
 
     if (!wrapper)
-      return;
+        return;
 
     _client.setDsp(wrapper);
 
@@ -354,6 +363,8 @@ void App::Impl::finishedCompiling(const CompileRequest &request, const CompileRe
         _window->adjustSize();
     }
     faustUI->run();
+
+    _client.setControls(request.initialControlValues.data(), request.initialControlValues.size());
 }
 
 //
@@ -378,7 +389,14 @@ int App::Impl::nsmOpen(const char *path, const char *display_name, const char *c
         QJsonDocument doc = QJsonDocument::fromJson(file.readAll());
         if (!doc.isNull()) {
             QJsonObject root = doc.object();
-            self->loadFile(root["file-path"].toString());
+
+            QJsonArray controlValues = root["control-values"].toArray();
+            int numControlValues = controlValues.size();
+            QVector<float> controlValuesFloat(numControlValues);
+            for (int i = 0; i < numControlValues; ++i)
+                controlValuesFloat[i] = (float)controlValues[i].toDouble();
+
+            impl.loadFileEx(root["file-path"].toString(), controlValuesFloat);
         }
     }
 
@@ -398,6 +416,16 @@ int App::Impl::nsmSave(char **out_msg, void *userdata)
     if (file.open(QFile::WriteOnly)) {
         QJsonObject root;
         root["file-path"] = impl._fileToLoad;
+
+        if (DSPWrapperPtr wrapper = impl._dspWrapper) {
+            std::vector<Parameter> inputParameters;
+            collectDspParameters(wrapper->getDsp(), &inputParameters, nullptr);
+            QJsonArray controlValues;
+            for (const Parameter &parameter : inputParameters)
+                controlValues.push_back(*parameter.zone);
+            root["control-values"] = controlValues;
+        }
+
         QJsonDocument doc;
         doc.setObject(root);
         file.write(doc.toJson(QJsonDocument::Indented));
