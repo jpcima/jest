@@ -356,6 +356,7 @@ void App::Impl::finishedCompiling(const CompileRequest &request, const CompileRe
     dsp *dsp = wrapper->getDsp();
 
     ///
+    App *self = static_cast<App *>(QCoreApplication::instance());
     GUI *faustUI = QTUI_create();
     _faustUi = faustUI;
     dsp->buildUserInterface(faustUI);
@@ -364,7 +365,7 @@ void App::Impl::finishedCompiling(const CompileRequest &request, const CompileRe
         _window->setWindowTitle(
             QString("%1: %2").arg(applicationDisplayName())
             .arg(QFileInfo(request.fileName).baseName()));
-        _window->adjustSize();
+        QMetaObject::invokeMethod(self, [this]() { _window->adjustSize(); }, Qt::QueuedConnection);
     }
     faustUI->run();
 
