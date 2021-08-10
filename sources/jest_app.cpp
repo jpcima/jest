@@ -316,7 +316,7 @@ void App::Impl::finishedCompiling(const CompileRequest &request, const CompileRe
     _spinner->stopAnimation();
 
     DSPWrapperPtr wrapper = result.dspWrapper;
-
+    DSPWrapperPtr oldWrapper = _dspWrapper;
     _dspWrapper = wrapper;
 
     ///
