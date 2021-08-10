@@ -344,15 +344,18 @@ void App::Impl::finishedCompiling(const CompileRequest &request, const CompileRe
     statusLabel->setPalette(statusPalette);
 
     QFrame *mainFrame = _windowUi.mainFrame;
-
-    QVBoxLayout *layout = static_cast<QVBoxLayout *>(mainFrame->layout());
-    while (QLayoutItem *item = layout->takeAt(0)) {
+    QVBoxLayout *mainLayout = static_cast<QVBoxLayout *>(mainFrame->layout());
+    while (QLayoutItem *item = mainLayout->takeAt(0)) {
         delete item->widget();
         delete item;
     }
 
-    if (!wrapper)
+    if (!wrapper) {
+        QLabel *mainLabel = new QLabel;
+        mainLabel->setPixmap(QPixmap(":/images/DropYourFaustLife_Blue.png"));
+        mainLayout->addWidget(mainLabel);
         return;
+    }
 
     _client.setDsp(wrapper);
 
@@ -365,7 +368,7 @@ void App::Impl::finishedCompiling(const CompileRequest &request, const CompileRe
     _faustUi = faustUI;
     dsp->buildUserInterface(faustUI);
     {
-        layout->addWidget(QTUI_widget(faustUI));
+        mainLayout->addWidget(QTUI_widget(faustUI));
         _window->setWindowTitle(
             QString("%1: %2").arg(applicationDisplayName())
             .arg(QFileInfo(request.fileName).baseName()));
