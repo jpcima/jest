@@ -15,7 +15,13 @@ find_package(PkgConfig)
 find_package(Threads REQUIRED)
 find_package(Qt5 COMPONENTS Widgets Network REQUIRED)
 pkg_check_modules(JACK "jack" REQUIRED IMPORTED_TARGET)
+pkg_check_modules(LIBLO "liblo" REQUIRED IMPORTED_TARGET)
 find_library(DL_LIBRARY "dl")
+
+###
+add_library(nsm INTERFACE)
+target_include_directories(nsm INTERFACE "thirdparty/nonlib")
+target_link_libraries(nsm INTERFACE PkgConfig::LIBLO)
 
 ###
 add_library(QProgressIndicator STATIC EXCLUDE_FROM_ALL
@@ -33,6 +39,8 @@ add_executable(jest
   "sources/jest_app.h"
   "sources/jest_dsp.cpp"
   "sources/jest_dsp.h"
+  "sources/jest_parameters.cpp"
+  "sources/jest_parameters.h"
   "sources/jest_worker.cpp"
   "sources/jest_worker.h"
   "sources/jest_client.cpp"
@@ -48,7 +56,7 @@ set_target_properties(jest PROPERTIES
   AUTORCC TRUE
   AUTOUIC TRUE)
 
-target_link_libraries(jest PRIVATE PkgConfig::JACK Threads::Threads)
+target_link_libraries(jest PRIVATE nsm PkgConfig::JACK Threads::Threads)
 target_link_libraries(jest PRIVATE QProgressIndicator Qt5::Widgets Qt5::Network)
 if(DL_LIBRARY)
   target_link_libraries(jest PRIVATE "${DL_LIBRARY}")

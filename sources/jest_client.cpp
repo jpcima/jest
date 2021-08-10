@@ -1,5 +1,6 @@
 #include "jest_client.h"
 #include "jest_dsp.h"
+#include "jest_parameters.h"
 #include "utility/logs.h"
 #include <algorithm>
 #include <cstring>
@@ -61,6 +62,26 @@ void Client::setDsp(DSPWrapperPtr dspWrapper)
         restoreJackConnections(_outputs[i], outputConnections[i]);
 }
 
+void Client::setControls(const float *initialValues, size_t numInitialValues)
+{
+    DSPWrapperPtr dspWrapper = _dspWrapper;
+    dsp *dsp = dspWrapper ? dspWrapper->getDsp() : nullptr;
+    if (dsp && numInitialValues > 0) {
+        std::vector<Parameter> inputParameters;
+        collectDspParameters(dsp, &inputParameters, nullptr);
+        for (size_t i = 0; i < numInitialValues && i < inputParameters.size(); ++i) {
+            float lo = inputParameters[i].min;
+            float hi = inputParameters[i].max;
+            *inputParameters[i].zone = std::max(lo, std::min(hi, initialValues[i]));
+        }
+    }
+}
+
+void Client::setClientName(const std::string &clientName)
+{
+    _clientName = clientName;
+}
+
 jack_client_t *Client::getJackClient()
 {
     jack_client_t *client = _lazyClient;
@@ -69,7 +90,7 @@ jack_client_t *Client::getJackClient()
 
     Log::i("Opening JACK client");
 
-    client = jack_client_open("jest", JackNoStartServer, nullptr);
+    client = jack_client_open(_clientName.c_str(), JackNoStartServer, nullptr);
     if (!client) {
         panic("Could not open JACK client");
     }

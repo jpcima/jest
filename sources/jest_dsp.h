@@ -2,6 +2,7 @@
 #include <faust/dsp/dsp.h>
 #include <QObject>
 #include <QString>
+#include <QVector>
 #include <memory>
 
 class DSPWrapper;
@@ -35,7 +36,8 @@ private:
 
 ///
 struct CompileRequest {
-  QString fileName;
+    QString fileName;
+    QVector<float> initialControlValues;
 };
 struct CompileResult {
     DSPWrapperPtr dspWrapper;

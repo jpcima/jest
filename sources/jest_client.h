@@ -1,5 +1,6 @@
 #pragma once
 #include <jack/jack.h>
+#include <string>
 #include <vector>
 #include <memory>
 class DSPWrapper;
@@ -11,8 +12,10 @@ class Client {
 public:
     Client();
     ~Client();
-
     void setDsp(DSPWrapperPtr dspWrapper);
+    void setControls(const float *initialValues, size_t numInitialValues);
+    void setClientName(const std::string &clientName);
+    bool ensureJackClientOpened() { return getJackClient() != nullptr; }
 
 private:
     jack_client_t *getJackClient();
@@ -29,6 +32,7 @@ private:
     std::vector<jack_port_t *> _inputs;
     std::vector<jack_port_t *> _outputs;
     std::vector<float *> _portBufs;
+    std::string _clientName{"jest"};
 };
 
 } // namespace jest
