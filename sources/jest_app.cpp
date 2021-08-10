@@ -343,6 +343,7 @@ void App::Impl::finishedCompiling(const CompileRequest &request, const CompileRe
     statusPalette.setColor(statusLabel->backgroundRole(), Qt::black);
     statusLabel->setPalette(statusPalette);
 
+    App *self = static_cast<App *>(QCoreApplication::instance());
     QFrame *mainFrame = _windowUi.mainFrame;
     QVBoxLayout *mainLayout = static_cast<QVBoxLayout *>(mainFrame->layout());
     while (QLayoutItem *item = mainLayout->takeAt(0)) {
@@ -354,6 +355,7 @@ void App::Impl::finishedCompiling(const CompileRequest &request, const CompileRe
         QLabel *mainLabel = new QLabel;
         mainLabel->setPixmap(QPixmap(":/images/DropYourFaustLife_Blue.png"));
         mainLayout->addWidget(mainLabel);
+        QMetaObject::invokeMethod(self, [this]() { _window->adjustSize(); }, Qt::QueuedConnection);
         return;
     }
 
@@ -363,7 +365,6 @@ void App::Impl::finishedCompiling(const CompileRequest &request, const CompileRe
     dsp *dsp = wrapper->getDsp();
 
     ///
-    App *self = static_cast<App *>(QCoreApplication::instance());
     GUI *faustUI = QTUI_create();
     _faustUi = faustUI;
     dsp->buildUserInterface(faustUI);
