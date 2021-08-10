@@ -5,6 +5,7 @@
 #include "utility/logs.h"
 #include "ui_jest_main_window.h"
 #include "faust/MyQTUI.h"
+#include <nsm.h>
 #include <unistd.h>
 #include <QProgressIndicator>
 #include <QLabel>
@@ -17,7 +18,14 @@
 #include <QDir>
 #include <QDateTime>
 #include <QTimer>
+#include <QCloseEvent>
+#include <QJsonDocument>
+#include <QJsonObject>
 #include <QDebug>
+#include <stdexcept>
+
+struct nsm_delete { void operator()(nsm_client_t *x) const noexcept { nsm_free(x); } };
+using nsm_u = std::unique_ptr<nsm_client_t, nsm_delete>;
 
 namespace jest {
 
@@ -35,16 +43,32 @@ struct App::Impl {
     QDateTime _fileToLoadMtime;
     QTimer *_fileCheckTimer = nullptr;
 
+    nsm_u _nsmClient;
+    bool _nsmIsOpen = false;
+    QString _nsmSessionPath;
+    QString _nsmDisplayName;
+
+    void initWithArgs();
+    void initWithNsm(const char *nsmUrl);
+
     void requestCurrentFile();
     void startedCompiling(const CompileRequest &request);
     void finishedCompiling(const CompileRequest &request, const CompileResult &result);
+
+    ///
+    static int nsmOpen(const char *name, const char *display_name, const char *client_id, char **out_msg, void *userdata);
+    static int nsmSave(char **out_msg, void *userdata);
+    static void nsmShowOptionalGui(void *userdata);
+    static void nsmHideOptionalGui(void *userdata);
+    static void nsmLog(void *userdata, const char *format, ...);
 };
 
 App::App(int &argc, char **argv)
     : QApplication(argc, argv),
       _impl(new Impl)
 {
-    setApplicationName("Jest");
+    setApplicationName("jest");
+    setApplicationDisplayName("Jest");
 }
 
 App::~App()
@@ -71,15 +95,6 @@ void App::init(int termPipe)
     }
 
     ///
-    QCommandLineParser clp;
-    clp.addPositionalArgument("file", tr("The file to open."));
-    clp.addHelpOption();
-    clp.process(*this);
-
-    const QStringList positional = clp.positionalArguments();
-    const QString fileToLoad = positional.value(0);
-
-    ///
     const QString &cacheDir = DSPWrapper::getCacheDirectory();
     Log::i("Creating the cache directory");
     QDir(cacheDir).mkpath(".");
@@ -93,12 +108,37 @@ void App::init(int termPipe)
     }
 
     ///
-    QMainWindow *window = new QMainWindow;
+    class MainWindow : public QMainWindow {
+    public:
+        using QMainWindow::QMainWindow;
+
+    protected:
+        void closeEvent(QCloseEvent *event) override
+        {
+            App *self = static_cast<App *>(QCoreApplication::instance());
+            Impl &impl = *self->_impl;
+            event->setAccepted(impl._nsmClient == nullptr);
+        }
+    };
+
+    MainWindow *window = new MainWindow;
     impl._window = window;
     impl._windowUi.setupUi(window);
 
+    ///
+    const char *nsmUrl = getenv("NSM_URL");
+    bool isUnderNsm = nsmUrl != nullptr;
+    if (isUnderNsm) {
+        Log::i("Session manager at %s", nsmUrl);
+        impl.initWithNsm(nsmUrl);
+    }
+    else
+        impl.initWithArgs();
+
+    ///
     window->setWindowTitle(applicationDisplayName());
-    window->show();
+    if (!isUnderNsm)
+        window->show();
 
     connect(
         impl._windowUi.actionOpen, &QAction::triggered,
@@ -133,6 +173,9 @@ void App::init(int termPipe)
     impl._spinner = spinner;
     toolBar->addWidget(spinner);
 
+    if (isUnderNsm)
+        window->setEnabled(impl._nsmIsOpen);
+
     ///
     QTimer *fileCheckTimer = new QTimer(this);
     impl._fileCheckTimer = fileCheckTimer;
@@ -157,9 +200,6 @@ void App::init(int termPipe)
     connect(
         impl._worker, &Worker::finishedCompiling,
         this, [&impl](const CompileRequest &request, const CompileResult &result) { impl.finishedCompiling(request, result); });
-
-    if (!fileToLoad.isEmpty())
-        loadFile(fileToLoad);
 }
 
 void App::shutdown()
@@ -192,6 +232,57 @@ void App::chooseFile()
         return;
 
     loadFile(fileName);
+}
+
+///
+void App::Impl::initWithArgs()
+{
+    App *self = static_cast<App *>(QCoreApplication::instance());
+
+    QCommandLineParser clp;
+    clp.addPositionalArgument("file", tr("The file to open."));
+    clp.addHelpOption();
+    clp.process(*self);
+
+    const QStringList positional = clp.positionalArguments();
+    const QString fileToLoad = positional.value(0);
+
+    if (!fileToLoad.isEmpty())
+        QMetaObject::invokeMethod(self, [self, fileToLoad]() { self->loadFile(fileToLoad); }, Qt::QueuedConnection);
+}
+
+void App::Impl::initWithNsm(const char *nsmUrl)
+{
+    nsm_client_t *nsmClient = nsm_new();
+    if (!nsmClient)
+        throw std::bad_alloc();
+
+    _nsmClient.reset(nsmClient);
+
+    nsm_set_open_callback(nsmClient, &nsmOpen, this);
+    nsm_set_save_callback(nsmClient, &nsmSave, this);
+    nsm_set_show_optional_gui_callback(nsmClient, &nsmShowOptionalGui, this);
+    nsm_set_hide_optional_gui_callback(nsmClient, &nsmHideOptionalGui, this);
+    nsm_set_log_callback(nsmClient, &nsmLog, this);
+
+    if (nsm_init(nsmClient, nsmUrl) != 0)
+        throw std::runtime_error("Cannot connect to session manager");
+
+    const QByteArray nsmAppName = applicationName().toUtf8();
+    const QByteArray nsmProcessName = arguments().at(0).toUtf8();
+    const char *nsmCapabilities = ":optional-gui:";
+    nsm_send_announce(nsmClient, nsmAppName.constData(), nsmCapabilities, nsmProcessName.constData());
+
+    if (_window->isVisible())
+        nsm_send_gui_is_shown(nsmClient);
+    else
+        nsm_send_gui_is_hidden(nsmClient);
+
+    ///
+    App *self = static_cast<App *>(QCoreApplication::instance());
+    QTimer *nsmTimer = new QTimer(self);
+    connect(nsmTimer, &QTimer::timeout, self, [nsmClient]() { nsm_check_nowait(nsmClient); });
+    nsmTimer->start(50);
 }
 
 ///
@@ -263,6 +354,87 @@ void App::Impl::finishedCompiling(const CompileRequest &request, const CompileRe
         _window->adjustSize();
     }
     faustUI->run();
+}
+
+//
+int App::Impl::nsmOpen(const char *path, const char *display_name, const char *client_id, char **out_msg, void *userdata)
+{
+    Impl &impl = *(Impl *)userdata;
+    Client &client = impl._client;
+    App *self = static_cast<App *>(QCoreApplication::instance());
+
+    Log::i("Session client ID: %s", client_id);
+
+    client.setClientName(client_id);
+    impl._nsmSessionPath = QString::fromUtf8(path);
+    impl._nsmDisplayName = QString::fromUtf8(display_name);
+
+    if (!client.ensureJackClientOpened())
+        return 1;
+
+    ///
+    QFile file(impl._nsmSessionPath + ".json");
+    if (file.open(QFile::ReadOnly)) {
+        QJsonDocument doc = QJsonDocument::fromJson(file.readAll());
+        if (!doc.isNull()) {
+            QJsonObject root = doc.object();
+            self->loadFile(root["file-path"].toString());
+        }
+    }
+
+    ///
+    impl._nsmIsOpen = true;
+    impl._window->setEnabled(true);
+
+    return 0;
+}
+
+int App::Impl::nsmSave(char **out_msg, void *userdata)
+{
+    Impl &impl = *(Impl *)userdata;
+
+    ///
+    QFile file(impl._nsmSessionPath + ".json");
+    if (file.open(QFile::WriteOnly)) {
+        QJsonObject root;
+        root["file-path"] = impl._fileToLoad;
+        QJsonDocument doc;
+        doc.setObject(root);
+        file.write(doc.toJson(QJsonDocument::Indented));
+        file.flush();
+    }
+
+    ///
+    return 0;
+}
+
+void App::Impl::nsmShowOptionalGui(void *userdata)
+{
+    Impl &impl = *(Impl *)userdata;
+    QMainWindow *window = impl._window;
+    window->show();
+
+    nsm_client_t *nsmClient = impl._nsmClient.get();
+    nsm_send_gui_is_shown(nsmClient);
+}
+
+void App::Impl::nsmHideOptionalGui(void *userdata)
+{
+    Impl &impl = *(Impl *)userdata;
+    QMainWindow *window = impl._window;
+    window->hide();
+
+    nsm_client_t *nsmClient = impl._nsmClient.get();
+    nsm_send_gui_is_hidden(nsmClient);
+}
+
+void App::Impl::nsmLog(void *userdata, const char *format, ...)
+{
+    (void)userdata;
+    va_list ap;
+    va_start(ap, format);
+    Log::vi(format, ap);
+    va_end(ap);
 }
 
 } // namespace jest

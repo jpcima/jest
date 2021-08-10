@@ -61,6 +61,11 @@ void Client::setDsp(DSPWrapperPtr dspWrapper)
         restoreJackConnections(_outputs[i], outputConnections[i]);
 }
 
+void Client::setClientName(const std::string &clientName)
+{
+    _clientName = clientName;
+}
+
 jack_client_t *Client::getJackClient()
 {
     jack_client_t *client = _lazyClient;
@@ -69,7 +74,7 @@ jack_client_t *Client::getJackClient()
 
     Log::i("Opening JACK client");
 
-    client = jack_client_open("jest", JackNoStartServer, nullptr);
+    client = jack_client_open(_clientName.c_str(), JackNoStartServer, nullptr);
     if (!client) {
         panic("Could not open JACK client");
     }
