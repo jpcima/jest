@@ -8,6 +8,7 @@
 class DSPWrapper;
 using DSPWrapperPtr = std::shared_ptr<DSPWrapper>;
 
+struct CompileSettings;
 struct CompileRequest;
 struct CompileResult;
 
@@ -24,9 +25,9 @@ public:
     static const QString &getCacheDirectory();
     static const QString &getWrapperFile();
     static const QString &getFaustProgram();
-    static const QString &getCxxProgram();
-    static const QStringList &getCxxFlags();
-    static const QStringList &getLdFlags();
+    static QString getCxxProgram(const CompileSettings &settings);
+    static QStringList getCxxFlags(const CompileSettings &settings);
+    static QStringList getLdFlags(const CompileSettings &settings);
 
 private:
     void *_soHandle = nullptr;
@@ -35,8 +36,36 @@ private:
 };
 
 ///
+enum CompilerId {
+    kCompilerDefault,
+    kCompilerGCC,
+    kCompilerClang,
+};
+
+enum CompilerFloatPrecision {
+    kCompilerSingleFloat,
+    kCompilerDoubleFloat,
+    kCompilerQuadFloat,
+};
+
+enum {
+    kCompilerVectorSizeMin = 4,
+    kCompilerVectorSizeMax = 64,
+};
+
+struct CompileSettings {
+    int cxxCompiler = kCompilerDefault;
+    int cxxOpt = 3;
+    bool cxxFastMath = true;
+    int faustFloat = kCompilerSingleFloat;
+    bool faustVec = false;
+    int faustVecSize = 32;
+    bool faustMathApp = true;
+};
+
 struct CompileRequest {
     QString fileName;
+    CompileSettings settings;
     QVector<float> initialControlValues;
 };
 struct CompileResult {

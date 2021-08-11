@@ -21,6 +21,7 @@ DSPWrapper::~DSPWrapper()
 CompileResult DSPWrapper::compile(const CompileRequest &request)
 {
     CompileResult result;
+    const CompileSettings &settings = request.settings;
 
     Log::i("Compiling DSP");
 
@@ -42,8 +43,25 @@ CompileResult DSPWrapper::compile(const CompileRequest &request)
         QStringList args;
         args << "-o" << cppFile;
         args << "-a" << getWrapperFile();
+        switch (settings.faustFloat) {
+        default:
+        case kCompilerSingleFloat:
+            args << "-single";
+            break;
+        case kCompilerDoubleFloat:
+            args << "-double";
+            break;
+        case kCompilerQuadFloat:
+            args << "-quad";
+            break;
+        }
+        if (settings.faustVec)
+            args << "-vec" << "-vs" << QString::number(settings.faustVecSize);
+        if (settings.faustMathApp)
+            args << "-mapp";
         args << request.fileName;
         proc.setArguments(args);
+        Log::i("$ %s %s", proc.program().toUtf8().constData() , proc.arguments().join(' ').toUtf8().constData());
         proc.start();
         proc.waitForFinished(-1);
         if (proc.exitStatus() != QProcess::NormalExit || proc.exitCode() != 0) {
@@ -54,15 +72,16 @@ CompileResult DSPWrapper::compile(const CompileRequest &request)
 
     {
         QProcess proc;
-        proc.setProgram(getCxxProgram());
+        proc.setProgram(getCxxProgram(settings));
         QStringList args;
-        args << getCxxFlags();
+        args << getCxxFlags(settings);
         args << "-shared";
         args << "-fPIC";
         args << "-o" << soFile;
         args << cppFile;
-        args << getLdFlags();
+        args << getLdFlags(settings);
         proc.setArguments(args);
+        Log::i("$ %s %s", proc.program().toUtf8().constData() , proc.arguments().join(' ').toUtf8().constData());
         proc.start();
         proc.waitForFinished(-1);
         if (proc.exitStatus() != QProcess::NormalExit || proc.exitCode() != 0) {
@@ -131,37 +150,36 @@ const QString &DSPWrapper::getFaustProgram()
     return file;
 }
 
-const QString &DSPWrapper::getCxxProgram()
+QString DSPWrapper::getCxxProgram(const CompileSettings &settings)
 {
-    static QString file = []() -> QString {
+    switch (settings.cxxCompiler) {
+    default:
+    case kCompilerDefault:
+    {
         const QByteArray data = qgetenv("CXX");
         if (data.isEmpty())
             return "c++";
         return QString::fromUtf8(data);
-    }();
-    return file;
+    }
+    case kCompilerGCC:
+        return "g++";
+    case kCompilerClang:
+        return "clang++";
+    }
 }
 
-const QStringList &DSPWrapper::getCxxFlags()
+QStringList DSPWrapper::getCxxFlags(const CompileSettings &settings)
 {
-    static QStringList list = []() -> QStringList {
-        const QByteArray data = qgetenv("CXXFLAGS");
-        if (data.isEmpty()) {
-            //return {"-O0", "-g"};
-            return {"-O3", "-g", "-ffast-math"};
-        }
-        return QString::fromUtf8(data).split(' ', Qt::SkipEmptyParts);
-    }();
-    return list;
+    QStringList args;
+    args << QString("-O%1").arg(settings.cxxOpt);
+    if (settings.cxxFastMath)
+        args << "-ffast-math";
+    return args;
 }
 
-const QStringList &DSPWrapper::getLdFlags()
+QStringList DSPWrapper::getLdFlags(const CompileSettings &settings)
 {
-    static QStringList list = []() -> QStringList {
-        const QByteArray data = qgetenv("LDFLAGS");
-        if (data.isEmpty())
-            return {};
-        return QString::fromUtf8(data).split(' ', Qt::SkipEmptyParts);
-    }();
-    return list;
+    QStringList args;
+    (void)settings;
+    return args;
 }

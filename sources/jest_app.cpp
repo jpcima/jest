@@ -1,4 +1,5 @@
 #include "jest_app.h"
+#include "jest_settings_panel.h"
 #include "jest_dsp.h"
 #include "jest_parameters.h"
 #include "jest_worker.h"
@@ -44,10 +45,12 @@ struct App::Impl {
     Ui::MainWindow _windowUi;
     QProgressIndicator *_spinner = nullptr;
     QLabel *_statusLabel = nullptr;
+    SettingsPanel *_settingsPanel = nullptr;
     GUI *_faustUi = nullptr;
     QString _fileToLoad;
     QDateTime _fileToLoadMtime;
     QTimer *_fileCheckTimer = nullptr;
+    CompileSettings _compileSettings;
 
     nsm_u _nsmClient;
     bool _nsmIsOpen = false;
@@ -191,6 +194,27 @@ void App::init(int termPipe)
     impl._spinner = spinner;
     toolBar->addWidget(spinner);
 
+    SettingsPanel *settingsPanel = new SettingsPanel;
+    impl._settingsPanel = settingsPanel;
+    window->addDockWidget(Qt::RightDockWidgetArea, settingsPanel);
+    settingsPanel->setVisible(impl._windowUi.actionSettings->isChecked());
+    settingsPanel->setCurrentSettings(impl._compileSettings);
+
+    connect(
+        settingsPanel, &SettingsPanel::settingsChanged,
+        this, [this]() {
+            Impl &impl = *_impl;
+            impl._compileSettings = impl._settingsPanel->getCurrentSettings();
+            impl.requestCurrentFile({});
+        });
+
+    connect(
+        impl._windowUi.actionSettings, &QAction::toggled,
+        this, [this, settingsPanel](bool checked) {
+            settingsPanel->setVisible(checked);
+            QMetaObject::invokeMethod(this, [this]() { _impl->_window->adjustSize(); }, Qt::QueuedConnection);
+        });
+
     if (isUnderNsm)
         window->setEnabled(impl._nsmIsOpen);
 
@@ -312,6 +336,7 @@ void App::Impl::requestCurrentFile(const QVector<float> &controlValues)
 {
     CompileRequest req;
     req.fileName = _fileToLoad;
+    req.settings = _compileSettings;
     req.initialControlValues = controlValues;
     _worker->request(req);
 }
@@ -370,6 +395,7 @@ void App::Impl::finishedCompiling(const CompileRequest &request, const CompileRe
     dsp->buildUserInterface(faustUI);
     {
         mainLayout->addWidget(QTUI_widget(faustUI));
+        mainLayout->addStretch();
         _window->setWindowTitle(
             QString("%1: %2").arg(applicationDisplayName())
             .arg(QFileInfo(request.fileName).baseName()));
