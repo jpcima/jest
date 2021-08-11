@@ -2,6 +2,7 @@
 #include <faust/dsp/dsp.h>
 #include <QObject>
 #include <QString>
+#include <QJsonDocument>
 #include <QVector>
 #include <memory>
 
@@ -62,6 +63,9 @@ struct CompileSettings {
     int faustVecSize = 32;
     bool faustMathApp = true;
 };
+
+QJsonDocument compileSettingsToJson(const CompileSettings &settings);
+CompileSettings compileSettingsFromJson(const QJsonDocument &document);
 
 struct CompileRequest {
     QString fileName;

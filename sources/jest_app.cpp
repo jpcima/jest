@@ -474,6 +474,14 @@ int App::Impl::nsmOpen(const char *path, const char *display_name, const char *c
         if (!doc.isNull()) {
             QJsonObject root = doc.object();
 
+            impl._compileSettings = compileSettingsFromJson(QJsonDocument(root["compiler-settings"].toObject()));
+
+            if (SettingsPanel *settingsPanel = impl._settingsPanel) {
+                settingsPanel->blockSignals(true);
+                settingsPanel->setCurrentSettings(impl._compileSettings);
+                settingsPanel->blockSignals(false);
+            }
+
             QJsonArray controlValues = root["control-values"].toArray();
             int numControlValues = controlValues.size();
             QVector<float> controlValuesFloat(numControlValues);
@@ -500,6 +508,8 @@ int App::Impl::nsmSave(char **out_msg, void *userdata)
     if (file.open(QFile::WriteOnly)) {
         QJsonObject root;
         root["file-path"] = impl._fileToLoad;
+
+        root["compiler-settings"] = compileSettingsToJson(impl._compileSettings).object();
 
         if (DSPWrapperPtr wrapper = impl._dspWrapper) {
             std::vector<Parameter> inputParameters;

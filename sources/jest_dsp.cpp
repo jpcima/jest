@@ -5,6 +5,8 @@
 #include <QProcess>
 #include <QFile>
 #include <QTemporaryFile>
+#include <QJsonObject>
+#include <QJsonArray>
 #include <QDebug>
 #include <dlfcn.h>
 
@@ -182,4 +184,34 @@ QStringList DSPWrapper::getLdFlags(const CompileSettings &settings)
     QStringList args;
     (void)settings;
     return args;
+}
+
+QJsonDocument compileSettingsToJson(const CompileSettings &settings)
+{
+    QJsonObject root;
+    root.insert("cxx-compiler", settings.cxxCompiler);
+    root.insert("cxx-optimization", settings.cxxOpt);
+    root.insert("cxx-fast-math", settings.cxxFastMath);
+    root.insert("faust-float", settings.faustFloat);
+    root.insert("faust-vectorize", settings.faustVec);
+    root.insert("faust-vector-size", settings.faustVecSize);
+    root.insert("faust-math-approximation", settings.faustMathApp);
+    QJsonDocument document;
+    document.setObject(root);
+    return document;
+}
+
+CompileSettings compileSettingsFromJson(const QJsonDocument &document)
+{
+    CompileSettings settings;
+    const CompileSettings defaults;
+    QJsonObject root = document.object();
+    settings.cxxCompiler = root.value("cxx-compiler").toInt(defaults.cxxCompiler);
+    settings.cxxOpt = root.value("cxx-optimization").toInt(defaults.cxxOpt);
+    settings.cxxFastMath = root.value("cxx-fast-math").toBool(defaults.cxxFastMath);
+    settings.faustFloat = root.value("faust-float").toInt(defaults.faustFloat);
+    settings.faustVec = root.value("faust-vectorize").toBool(defaults.faustVec);
+    settings.faustVecSize = root.value("faust-vector-size").toInt(defaults.faustVecSize);
+    settings.faustMathApp = root.value("faust-math-approximation").toBool(defaults.faustMathApp);
+    return settings;
 }
