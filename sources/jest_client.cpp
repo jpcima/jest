@@ -196,7 +196,7 @@ int Client::process(jack_nframes_t nframes, void *arg)
     size_t numOutputs = self->_outputs.size();
 
     float **inputs = self->_portBufs.data();
-    float **outputs = inputs + numOutputs;
+    float **outputs = inputs + numInputs;
 
     for (size_t i = 0; i < numInputs; ++i) {
         inputs[i] = (float *)jack_port_get_buffer(self->_inputs[i], nframes);
