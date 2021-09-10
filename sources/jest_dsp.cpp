@@ -4,6 +4,8 @@
 #include <QCoreApplication>
 #include <QProcess>
 #include <QFile>
+#include <QFileInfo>
+#include <QDir>
 #include <QTemporaryFile>
 #include <QJsonObject>
 #include <QJsonArray>
@@ -76,6 +78,7 @@ CompileResult DSPWrapper::compile(const CompileRequest &request)
         QProcess proc;
         proc.setProgram(getCxxProgram(settings));
         QStringList args;
+        args << "-I" << QFileInfo(request.fileName).dir().path();
         args << getCxxFlags(settings);
         args << "-shared";
         args << "-fPIC";
