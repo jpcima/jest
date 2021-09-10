@@ -6,8 +6,8 @@
    <rect>
     <x>0</x>
     <y>0</y>
-    <width>200</width>
-    <height>200</height>
+    <width>281</width>
+    <height>217</height>
    </rect>
   </property>
   <property name="windowTitle">
@@ -34,6 +34,7 @@
     <bool>false</bool>
    </attribute>
    <addaction name="actionOpen"/>
+   <addaction name="actionEdit"/>
    <addaction name="actionSettings"/>
   </widget>
   <action name="actionOpen">
@@ -56,10 +57,19 @@
     <bool>true</bool>
    </property>
    <property name="icon">
-    <iconset theme="preferences-system"/>
+    <iconset theme="preferences-system">
+     <normaloff>.</normaloff>.</iconset>
    </property>
    <property name="text">
     <string>Settings</string>
+   </property>
+  </action>
+  <action name="actionEdit">
+   <property name="icon">
+    <iconset theme="accessories-text-editor"/>
+   </property>
+   <property name="text">
+    <string>Edit</string>
    </property>
   </action>
  </widget>

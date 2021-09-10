@@ -4,6 +4,7 @@
 #include "jest_parameters.h"
 #include "jest_worker.h"
 #include "jest_client.h"
+#include "jest_file_helpers.h"
 #include "utility/logs.h"
 #include "ui_jest_main_window.h"
 #include "faust/MyQTUI.h"
@@ -213,6 +214,14 @@ void App::init(int termPipe)
         this, [this, settingsPanel](bool checked) {
             settingsPanel->setVisible(checked);
             QMetaObject::invokeMethod(this, [this]() { _impl->_window->adjustSize(); }, Qt::QueuedConnection);
+        });
+
+    connect(
+        impl._windowUi.actionEdit, &QAction::triggered,
+        this, [this]() {
+            Impl &impl = *_impl;
+            if (!impl._fileToLoad.isEmpty())
+                jest_edit_file(impl._fileToLoad.toUtf8().constData());
         });
 
     if (isUnderNsm)

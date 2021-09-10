@@ -16,6 +16,7 @@ find_package(Threads REQUIRED)
 find_package(Qt5 COMPONENTS Widgets Network REQUIRED)
 pkg_check_modules(JACK "jack" REQUIRED IMPORTED_TARGET)
 pkg_check_modules(LIBLO "liblo" REQUIRED IMPORTED_TARGET)
+pkg_check_modules(GIO "gio-2.0" REQUIRED IMPORTED_TARGET)
 find_library(DL_LIBRARY "dl")
 
 ###
@@ -48,6 +49,8 @@ add_executable(jest
   "sources/jest_worker.h"
   "sources/jest_client.cpp"
   "sources/jest_client.h"
+  "sources/jest_file_helpers.cpp"
+  "sources/jest_file_helpers.h"
   "sources/jest_main_window.ui"
   "sources/utility/logs.cpp"
   "sources/utility/logs.h"
@@ -60,7 +63,7 @@ set_target_properties(jest PROPERTIES
   AUTOUIC TRUE)
 
 target_link_libraries(jest PRIVATE nsm PkgConfig::JACK Threads::Threads)
-target_link_libraries(jest PRIVATE QProgressIndicator Qt5::Widgets Qt5::Network)
+target_link_libraries(jest PRIVATE QProgressIndicator Qt5::Widgets Qt5::Network PkgConfig::GIO)
 if(DL_LIBRARY)
   target_link_libraries(jest PRIVATE "${DL_LIBRARY}")
 endif()
