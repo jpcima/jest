@@ -6,8 +6,8 @@
    <rect>
     <x>0</x>
     <y>0</y>
-    <width>281</width>
-    <height>217</height>
+    <width>397</width>
+    <height>294</height>
    </rect>
   </property>
   <property name="windowTitle">
@@ -33,6 +33,7 @@
    <attribute name="toolBarBreak">
     <bool>false</bool>
    </attribute>
+   <addaction name="actionNew"/>
    <addaction name="actionOpen"/>
    <addaction name="actionEdit"/>
    <addaction name="actionSettings"/>
@@ -70,6 +71,24 @@
    </property>
    <property name="text">
     <string>Edit</string>
+   </property>
+  </action>
+  <action name="actionNew">
+   <property name="icon">
+    <iconset theme="document-new"/>
+   </property>
+   <property name="text">
+    <string>New</string>
+   </property>
+  </action>
+  <action name="actionNewFaustFile">
+   <property name="text">
+    <string>New Faust file</string>
+   </property>
+  </action>
+  <action name="actionNewCxxFile">
+   <property name="text">
+    <string>New C++ file</string>
    </property>
   </action>
  </widget>

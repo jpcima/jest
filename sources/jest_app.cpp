@@ -11,6 +11,8 @@
 #include <nsm.h>
 #include <unistd.h>
 #include <QProgressIndicator>
+#include <QMenu>
+#include <QToolButton>
 #include <QLabel>
 #include <QFileDialog>
 #include <QSocketNotifier>
@@ -61,6 +63,8 @@ struct App::Impl {
     void initWithArgs();
     void initWithNsm(const char *nsmUrl);
 
+    void newFaustFile();
+    void newCxxFile();
     void loadFileEx(const QString &fileName, const QVector<float> &controlValues);
     void requestCurrentFile(const QVector<float> &controlValues);
     void startedCompiling(const CompileRequest &request);
@@ -224,6 +228,26 @@ void App::init(int termPipe)
                 jest_edit_file(impl._fileToLoad.toUtf8().constData());
         });
 
+    QMenu *menuNew = new QMenu;
+    menuNew->addAction(impl._windowUi.actionNewFaustFile);
+    menuNew->addAction(impl._windowUi.actionNewCxxFile);
+    impl._windowUi.actionNew->setMenu(menuNew);
+    qobject_cast<QToolButton *>(toolBar->widgetForAction(impl._windowUi.actionNew))
+        ->setPopupMode(QToolButton::InstantPopup);
+
+    connect(
+        impl._windowUi.actionNewFaustFile, &QAction::triggered,
+        this, [this]() {
+            Impl &impl = *_impl;
+            impl.newFaustFile();
+        });
+    connect(
+        impl._windowUi.actionNewCxxFile, &QAction::triggered,
+        this, [this]() {
+            Impl &impl = *_impl;
+            impl.newCxxFile();
+        });
+
     if (isUnderNsm)
         window->setEnabled(impl._nsmIsOpen);
 
@@ -271,7 +295,7 @@ void App::chooseFile()
     Impl &impl = *_impl;
 
     QString fileName = QFileDialog::getOpenFileName(
-        impl._window, tr("Open file"), QString(), tr("Faust DSP (*.dsp)"));
+        impl._window, tr("Open file"), QString(), tr("Faust DSP (*.dsp);;C++ DSP (*.cxx)"));
 
     if (fileName.isEmpty())
         return;
@@ -331,6 +355,57 @@ void App::Impl::initWithNsm(const char *nsmUrl)
 }
 
 ///
+void App::Impl::newFaustFile()
+{
+    QFileDialog dlg(_window, tr("New file"), QString(), tr("Faust DSP (*.dsp)"));
+    dlg.setAcceptMode(QFileDialog::AcceptSave);
+    dlg.setDefaultSuffix("dsp");
+
+    if (dlg.exec() != QDialog::Accepted)
+        return;
+    QStringList selectedFiles = dlg.selectedFiles();
+    if (selectedFiles.empty())
+        return;
+    const QString &fileName = selectedFiles.front();
+
+    if (fileName.isEmpty())
+        return;
+
+    {
+        QFile file(fileName);
+        if (!file.open(QFile::WriteOnly))
+            return;
+        file.write(QResource(":/templates/new_faust.dsp").uncompressedData());
+    }
+
+    App *self = static_cast<App *>(QCoreApplication::instance());
+    self->loadFile(fileName);
+}
+
+void App::Impl::newCxxFile()
+{
+    QFileDialog dlg(_window, tr("New file"), QString(), tr("C++ DSP (*.cxx)"));
+    dlg.setAcceptMode(QFileDialog::AcceptSave);
+    dlg.setDefaultSuffix("cxx");
+
+    if (dlg.exec() != QDialog::Accepted)
+        return;
+    QStringList selectedFiles = dlg.selectedFiles();
+    if (selectedFiles.empty())
+        return;
+    const QString &fileName = selectedFiles.front();
+
+    {
+        QFile file(fileName);
+        if (!file.open(QFile::WriteOnly))
+            return;
+        file.write(QResource(":/templates/new_cxx.cxx").uncompressedData());
+    }
+
+    App *self = static_cast<App *>(QCoreApplication::instance());
+    self->loadFile(fileName);
+}
+
 void App::Impl::loadFileEx(const QString &fileName, const QVector<float> &controlValues)
 {
     _fileToLoad = fileName;

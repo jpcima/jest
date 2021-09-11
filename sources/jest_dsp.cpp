@@ -29,7 +29,15 @@ CompileResult DSPWrapper::compile(const CompileRequest &request)
 
     Log::i("Compiling DSP");
 
-    const QString cppFile = QString("%1/%2").arg(getCacheDirectory()).arg("file.cpp");
+    static const QStringList cppFileSuffixes = {
+        "h", "hpp", "hxx", "hh",
+        "c", "cpp", "cxx", "cc",
+    };
+
+    QString fileSuffix = QFileInfo(request.fileName).suffix().toLower();
+    bool sourceIsCpp = cppFileSuffixes.contains(fileSuffix);
+
+    QString cppFile = QString("%1/%2").arg(getCacheDirectory()).arg("file.cpp");
     QString soFile = QString("%1/%2").arg(getCacheDirectory()).arg("file.XXXXXX.so");
 
     {
@@ -41,6 +49,10 @@ CompileResult DSPWrapper::compile(const CompileRequest &request)
         soFile = temp.fileName();
     }
 
+    if (sourceIsCpp) {
+        cppFile = request.fileName;
+    }
+    else
     {
         QProcess proc;
         proc.setProgram(getFaustProgram());
