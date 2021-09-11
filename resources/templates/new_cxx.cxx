@@ -61,10 +61,10 @@ public:
         return fSampleRate;
     }
 
-    void buildUserInterface(UI *ui_interface) override
+    void buildUserInterface(UI *ui) override
     {
-        ui_interface->openVerticalBox("mydsp");
-        ui_interface->closeBox();
+        ui->openVerticalBox("mydsp");
+        ui->closeBox();
     }
 
     void compute(int count, FAUSTFLOAT **inputs, FAUSTFLOAT **outputs) override
